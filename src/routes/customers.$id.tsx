@@ -19,10 +19,16 @@ const PASSPORT_TYPES = ["New passport", "Expired passport", "Damaged passport", 
 const APPOINTMENT_TYPES = ["Regular", "Urgent 2 days", "Urgent 5 days"];
 const ORDER_STATUSES = ["Not started", "New", "In progress", "Done"];
 const IMMIGRATION_BRANCHES = ["Addis Ababa", "Bule Hora", "Woldia", "Bahir Dar", "Dessie", "Mizan Tepi", "Dire Dawa", "Semera", "Bale Robe", "Wolaita Sodo", "Hawassa", "Debre Birhan", "Arba Minch", "Hosana", "Gondar", "Adama", "Jimma"];
-const WEEKS = ["Week-1", "Week-2", "Week-3", "Week-4"];
+const WEEKS = [
+  { label: "Week-1", value: 1 },
+  { label: "Week-2", value: 2 },
+  { label: "Week-3", value: 3 },
+  { label: "Week-4", value: 4 },
+];
 const MONTHS_AM = ["ሀምሌ", "ነሀሴ", "መስከረም", "ጥቅምት", "ህዳር", "ታህሳስ", "ጥር", "የካቲት", "መጋቢት", "ሚያዝያ", "ግንቦት", "ሰኔ"];
 const YEARS = Array.from({ length: 10 }, (_, i) => String(2013 + i));
 const COMING_PLATFORMS = ["Direct office", "Friend/ relatives related", "Freelancer/ Affiliate Marketing", "Referral", "Telegram", "TikTok", "Facebook/ Instagram/ WhatsApp", "paid Ads(paid advertising)"];
+const CONTACTED_BY = ["Sadam", "Hussain", "Seada", "Wegagen", "Eman Banchi"];
 
 const DOC_FIELDS: [string, string][] = [
   ["Birth Certificate", "birth_certificate_url"],
@@ -81,11 +87,36 @@ function CustomerDetail() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [c, setC] = useState<any>(null);
+  const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.from("customers").select("*").eq("id", id).maybeSingle().then(({ data }) => setC(data));
+    supabase.from("customers").select("*").eq("id", id).maybeSingle().then(({ data }) => {
+      if (!data) {
+        // Either the row doesn't exist, or RLS silently excluded it because
+        // this account doesn't own it and isn't the admin.
+        setNotFound(true);
+      } else {
+        setC(data);
+      }
+    });
   }, [id]);
+
+  if (notFound) {
+    return (
+      <AdminLayout title="Customer Detail View">
+        <div className="max-w-[1200px] mx-auto text-center py-20">
+          <h2 className="text-xl font-semibold mb-2">Customer not found</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            This customer doesn't exist, or you don't have access to it.
+          </p>
+          <Link to="/customers" className="text-primary font-semibold hover:underline">
+            Back to Customer List
+          </Link>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   if (!c) return <AdminLayout title="Customer Detail View"><div className="text-muted-foreground">Loading…</div></AdminLayout>;
 
@@ -93,7 +124,7 @@ function CustomerDetail() {
 
   const save = async () => {
     setSaving(true);
-    const { id: _id, created_at, updated_at, created_by, ...rest } = c;
+    const { id: _id, created_at, updated_at, created_by, created_by_name, ...rest } = c;
     await supabase.from("customers").update(rest).eq("id", id);
     setSaving(false);
   };
@@ -162,9 +193,9 @@ function CustomerDetail() {
               <div><label className={labelCls}>Birth Date</label><input type="date" className={inputCls} value={c.birth_date ?? ""} onChange={(e) => set("birth_date", e.target.value)} /></div>
               <div><label className={labelCls}>Birth Place</label><input className={inputCls} value={c.birth_place ?? ""} onChange={(e) => set("birth_place", e.target.value)} /></div>
               <div><label className={labelCls}>Week</label>
-                <select className={inputCls} value={c.week ?? ""} onChange={(e) => set("week", e.target.value)}>
+                <select className={inputCls} value={c.week ?? ""} onChange={(e) => set("week", e.target.value ? Number(e.target.value) : null)}>
                   <option value="">—</option>
-                  {WEEKS.map((w) => <option key={w}>{w}</option>)}
+                  {WEEKS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
                 </select>
               </div>
               <div><label className={labelCls}>Month</label>
@@ -199,7 +230,12 @@ function CustomerDetail() {
             </Section>
 
             <Section title="Professional & Civil Status" icon={Briefcase}>
-              <div><label className={labelCls}>Contacted By</label><input className={inputCls} value={c.served_by ?? ""} onChange={(e) => set("served_by", e.target.value)} /></div>
+              <div><label className={labelCls}>Contacted By</label>
+                <select className={inputCls} value={c.served_by ?? ""} onChange={(e) => set("served_by", e.target.value)}>
+                  <option value="">—</option>
+                  {CONTACTED_BY.map((s) => <option key={s}>{s}</option>)}
+                </select>
+              </div>
               <div><label className={labelCls}>Marital Status</label><input className={inputCls} value={c.marital_status ?? ""} onChange={(e) => set("marital_status", e.target.value)} /></div>
               <div><label className={labelCls}>Customers Work Type</label><input className={inputCls} value={c.work_type ?? ""} onChange={(e) => set("work_type", e.target.value)} /></div>
               <div><label className={labelCls}>Immigration Branch</label>

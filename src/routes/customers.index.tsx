@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 import { Pencil, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/customers/")({
@@ -10,8 +11,13 @@ export const Route = createFileRoute("/customers/")({
 });
 
 function CustomersList() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const [rows, setRows] = useState<any[]>([]);
 
+  // No manual "created_by = user.id" filter needed here — Row Level Security
+  // on the customers table already restricts non-admins to their own rows,
+  // and lets the admin see everything. See supabase_migration.sql.
   const load = async () => {
     const { data } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
     setRows(data ?? []);
@@ -27,7 +33,7 @@ function CustomersList() {
   return (
     <AdminLayout title="Customer Management">
       <div className="max-w-[1200px] mx-auto">
-        <h1 className="text-3xl font-bold mb-6">All Customers</h1>
+        <h1 className="text-3xl font-bold mb-6">{isAdmin ? "All Customers" : "My Customers"}</h1>
         <div className="bg-card rounded-2xl border overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -36,6 +42,7 @@ function CustomersList() {
                 <th className="text-left px-6 py-3">Contact</th>
                 <th className="text-left px-6 py-3">Service</th>
                 <th className="text-left px-6 py-3">Status</th>
+                {isAdmin && <th className="text-left px-6 py-3">Created By</th>}
                 <th className="text-right px-6 py-3">Actions</th>
               </tr>
             </thead>
@@ -46,6 +53,7 @@ function CustomersList() {
                   <td className="px-6 py-4">{c.phone_number}<div className="text-xs text-muted-foreground">{c.email}</div></td>
                   <td className="px-6 py-4">{c.service_type}</td>
                   <td className="px-6 py-4">{c.passport_status}</td>
+                  {isAdmin && <td className="px-6 py-4 text-muted-foreground">{c.created_by_name || "—"}</td>}
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2 text-muted-foreground">
                       <Link to="/customers/$id" params={{ id: c.id }} className="hover:text-primary"><Pencil className="h-4 w-4" /></Link>
@@ -54,7 +62,13 @@ function CustomersList() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={5} className="text-center py-10 text-muted-foreground">No customers yet.</td></tr>}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 6 : 5} className="text-center py-10 text-muted-foreground">
+                    No customers yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
